@@ -1,9 +1,26 @@
 #include <Windows.h>
+#include <WebView2.h>
+#include <wrl.h>
 
 #include "Definitions.h"
 
+using namespace Microsoft::WRL;
+
 constexpr int WINDOW_STARTING_WIDTH = 800;
 constexpr int WINDOW_STARTING_HEIGHT = 600;
+
+ComPtr<ICoreWebView2Controller> _webviewController;
+ComPtr<ICoreWebView2> _webview;
+
+static void SetWebViewSizeToMatchWindowSize(const HWND& windowHandle)
+{
+	if (_webviewController)
+	{
+		RECT bounds;
+		GetClientRect(windowHandle, &bounds);
+		_webviewController->put_Bounds(bounds);
+	}
+}
 
 static LRESULT CALLBACK ProcessWindowMessage(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -17,6 +34,9 @@ static LRESULT CALLBACK ProcessWindowMessage(HWND windowHandle, UINT message, WP
 		EndPaint(windowHandle, &ps);
 		return 0;
 	}
+	case WM_SIZE:
+		SetWebViewSizeToMatchWindowSize(windowHandle);
+		break;
 
 	case WM_CLOSE:
 		DestroyWindow(windowHandle);
@@ -31,7 +51,7 @@ static LRESULT CALLBACK ProcessWindowMessage(HWND windowHandle, UINT message, WP
 	return DefWindowProc(windowHandle, message, wParam, lParam);
 }
 
-static HINSTANCE DefineWindowClass(const HINSTANCE& instanceHandle)
+static void RegisterWindowClass(const HINSTANCE& instanceHandle)
 {
 	WNDCLASS windowClass = {};
 
@@ -42,8 +62,6 @@ static HINSTANCE DefineWindowClass(const HINSTANCE& instanceHandle)
 	windowClass.hCursor = LoadCursor(nullptr, IDC_ARROW);
 
 	RegisterClass(&windowClass);
-
-	return instanceHandle;
 }
 
 static HWND InitializeWindow(const HINSTANCE& instanceHandle)
@@ -66,15 +84,62 @@ static HWND InitializeWindow(const HINSTANCE& instanceHandle)
 	return windowHandle;
 }
 
+static void UseWebView(const HWND& windowHandle)
+{
+	CreateCoreWebView2EnvironmentWithOptions(
+		nullptr,
+		nullptr,
+		nullptr,
+		Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
+			[windowHandle](HRESULT result, ICoreWebView2Environment* env) -> HRESULT
+			{
+				env->CreateCoreWebView2Controller(
+					windowHandle,
+					Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+						[windowHandle](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT
+						{
+							if (controller)
+							{
+								_webviewController = controller;
+								_webviewController->get_CoreWebView2(&_webview);
+
+								SetWebViewSizeToMatchWindowSize(windowHandle);
+
+								_webview->Navigate(L"https://www.google.com");
+							}
+							return S_OK;
+						}
+					).Get()
+				);
+				return S_OK;
+			}
+		).Get()
+	);
+}
+
+static void InitializeApplication(const HINSTANCE& instanceHandle)
+{
+	(void)CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+	RegisterWindowClass(instanceHandle);
+}
+
+static void ShutdownApplication(const HINSTANCE& instanceHandle)
+{
+	CoUninitialize();
+	UnregisterClass(APPLICATION_NAME, instanceHandle);
+}
+
 int WINAPI wWinMain(
 	_In_ HINSTANCE instanceHandle,
 	_In_opt_ HINSTANCE previousInstanceHandle,
 	_In_ PWSTR arguments,
 	_In_ int windowState)
 {
-	DefineWindowClass(instanceHandle);
+	InitializeApplication(instanceHandle);
+
 	HWND windowHandle = InitializeWindow(instanceHandle);
 
+	UseWebView(windowHandle);
 	ShowWindow(windowHandle, windowState);
 	UpdateWindow(windowHandle);
 
@@ -85,6 +150,6 @@ int WINAPI wWinMain(
 		DispatchMessage(&message);
 	}
 
-	UnregisterClass(APPLICATION_NAME, instanceHandle);
+	ShutdownApplication(instanceHandle);
 	return 0;
 }
