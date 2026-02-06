@@ -104,7 +104,34 @@ static void UseWebView(const HWND windowHandle)
 								_webviewController = controller;
 								_webviewController->get_CoreWebView2(&_webview);
 
+								ICoreWebView2Settings* settings;
+								_webview->get_Settings(&settings);
+
+								settings->put_AreDevToolsEnabled(FALSE);
+								settings->put_AreDefaultContextMenusEnabled(FALSE);
+								settings->put_AreDefaultScriptDialogsEnabled(FALSE);
+
 								SetWebViewSizeToMatchWindowSize(windowHandle);
+
+								_webview->add_WebMessageReceived(
+									Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+										[](ICoreWebView2* sender,
+											ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT
+										{
+											LPWSTR jsonMessage = nullptr;
+											if (SUCCEEDED(args->get_WebMessageAsJson(&jsonMessage)))
+											{
+												// OPTION 1
+												sender->ExecuteScript(
+													L"onMessageFromCpp('JSON received by C++');", nullptr);
+
+												// OPTION 2
+												//_webview->PostWebMessageAsJson(jsonMessage);
+											}
+
+											CoTaskMemFree(jsonMessage);
+											return S_OK;
+										}).Get(), nullptr);
 
 								std::wstring executableDirectoryPath =
 									FileSystem::GetExecutableDirectoryPath();

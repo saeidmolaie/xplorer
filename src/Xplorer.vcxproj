@@ -100,6 +100,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="web\index.html" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Definitions.h" />
