@@ -3,6 +3,7 @@
 #include <wrl.h>
 
 #include "Definitions.h"
+#include "FileSystem.h"
 
 using namespace Microsoft::WRL;
 
@@ -12,7 +13,7 @@ constexpr int WINDOW_STARTING_HEIGHT = 600;
 ComPtr<ICoreWebView2Controller> _webviewController;
 ComPtr<ICoreWebView2> _webview;
 
-static void SetWebViewSizeToMatchWindowSize(const HWND& windowHandle)
+static void SetWebViewSizeToMatchWindowSize(const HWND windowHandle)
 {
 	if (_webviewController)
 	{
@@ -51,7 +52,7 @@ static LRESULT CALLBACK ProcessWindowMessage(HWND windowHandle, UINT message, WP
 	return DefWindowProc(windowHandle, message, wParam, lParam);
 }
 
-static void RegisterWindowClass(const HINSTANCE& instanceHandle)
+static void RegisterWindowClass(const HINSTANCE instanceHandle)
 {
 	WNDCLASS windowClass = {};
 
@@ -64,7 +65,7 @@ static void RegisterWindowClass(const HINSTANCE& instanceHandle)
 	RegisterClass(&windowClass);
 }
 
-static HWND InitializeWindow(const HINSTANCE& instanceHandle)
+static HWND InitializeWindow(const HINSTANCE instanceHandle)
 {
 	HWND windowHandle = CreateWindowEx(
 		0,
@@ -84,7 +85,7 @@ static HWND InitializeWindow(const HINSTANCE& instanceHandle)
 	return windowHandle;
 }
 
-static void UseWebView(const HWND& windowHandle)
+static void UseWebView(const HWND windowHandle)
 {
 	CreateCoreWebView2EnvironmentWithOptions(
 		nullptr,
@@ -105,7 +106,15 @@ static void UseWebView(const HWND& windowHandle)
 
 								SetWebViewSizeToMatchWindowSize(windowHandle);
 
-								_webview->Navigate(L"https://www.google.com");
+								std::wstring executableDirectoryPath =
+									FileSystem::GetExecutableDirectoryPath();
+
+								std::wstring localHtmlFileUri =
+									L"file:///" + executableDirectoryPath + HTML_FILE_NAME;
+
+								//_webview->Navigate(L"https://www.google.com");
+								_webview->Navigate(
+									localHtmlFileUri.c_str());
 							}
 							return S_OK;
 						}
@@ -117,13 +126,13 @@ static void UseWebView(const HWND& windowHandle)
 	);
 }
 
-static void InitializeApplication(const HINSTANCE& instanceHandle)
+static void InitializeApplication(const HINSTANCE instanceHandle)
 {
 	(void)CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 	RegisterWindowClass(instanceHandle);
 }
 
-static void ShutdownApplication(const HINSTANCE& instanceHandle)
+static void ShutdownApplication(const HINSTANCE instanceHandle)
 {
 	CoUninitialize();
 	UnregisterClass(APPLICATION_NAME, instanceHandle);
